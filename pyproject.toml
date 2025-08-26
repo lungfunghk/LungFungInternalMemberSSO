@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lungfung-sso"
+version = "1.0.0"
+description = "LungFung SSO authentication module for Django projects"
+authors = [
+    {name = "LungFung IT Team", email = "it@lungfung.hk"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Django",
+    "Framework :: Django :: 5.0",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "django>=5.0.0",
+    "djangorestframework>=3.15.0",
+    "requests>=2.31.0",
+    "pyjwt>=2.8.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-django>=4.5.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "isort>=5.12.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/lungfung/lungfung-sso"
+Repository = "https://github.com/lungfung/lungfung-sso.git"
+Issues = "https://github.com/lungfung/lungfung-sso/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lungfung_sso"]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
