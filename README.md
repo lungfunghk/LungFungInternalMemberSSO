@@ -1,6 +1,29 @@
 # LungFung SSO 認證模組
 
+[![GitHub](https://img.shields.io/badge/GitHub-lungfunghk%2FLungFungInternalMemberSSO-blue?style=flat&logo=github)](https://github.com/lungfunghk/LungFungInternalMemberSSO)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=flat&logo=python)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/Django-5.0%2B-green?style=flat&logo=django)](https://www.djangoproject.com/)
+
 這是一個 Django 包，為 LungFung 項目提供統一的 SSO（單點登錄）認證功能。
+
+## 📚 文檔導航
+
+- 🚀 **[5分鐘快速入門](docs/QUICK_START_GUIDE.md)** - 快速集成到您的項目
+- 📖 **[完整集成指南](INTEGRATION_GUIDE.md)** - 詳細的安裝和配置說明
+- ⚙️ **[系統配置指南](docs/SYSTEM_CONFIGURATIONS.md)** - 各子系統的具體配置
+- 💡 **[實際使用案例](docs/USAGE_EXAMPLES.md)** - 真實業務場景的代碼示例
+- 🔧 **[打包指南](docs/sso_module_packaging_guide.md)** - 如何打包和發布
+
+## 🎯 支持的系統
+
+| 系統 | 代碼 | 狀態 | 文檔 |
+|------|------|------|------|
+| 台城系統 | TAICHENG | ✅ 已支持 | [配置指南](docs/SYSTEM_CONFIGURATIONS.md#1-台城系統-taicheng) |
+| 庫存系統 | STS | ✅ 已支持 | [配置指南](docs/SYSTEM_CONFIGURATIONS.md#2-庫存系統-sts---stock-taking-system) |
+| 會計系統 | ACS | ✅ 已支持 | [配置指南](docs/SYSTEM_CONFIGURATIONS.md#3-會計系統-acs---accounting-system) |
+| 人力資源系統 | HRS | ✅ 已支持 | [配置指南](docs/SYSTEM_CONFIGURATIONS.md#4-人力資源系統-hrs---human-resource-system) |
+| 銷售系統 | SLS | ✅ 已支持 | [配置指南](docs/SYSTEM_CONFIGURATIONS.md#5-銷售系統-sls---sales-system) |
+| 採購系統 | PCS | ✅ 已支持 | [配置指南](docs/SYSTEM_CONFIGURATIONS.md#6-採購系統-pcs---purchasing-system) |
 
 ## 功能特點
 
@@ -13,24 +36,35 @@
 
 ## 安裝
 
-### 開發模式安裝（推薦）
+### 從 GitHub 安裝（推薦）
 
 ```bash
-# 在項目根目錄
-pip install -e .
+# 安裝最新版本
+pip install git+https://github.com/lungfunghk/LungFungInternalMemberSSO.git
 
-# 或者從其他項目安裝
-pip install -e /path/to/lungfung-sso
+# 或者安裝特定版本
+pip install git+https://github.com/lungfunghk/LungFungInternalMemberSSO.git@v1.0.0
 ```
 
 ### 在 requirements.txt 中使用
 
 ```txt
-# 本地開發包
--e ../lungfung-sso
+# 從 GitHub 安裝
+git+https://github.com/lungfunghk/LungFungInternalMemberSSO.git
 
-# 或者指定絕對路徑
--e /path/to/lungfung-sso
+# 或者指定版本
+git+https://github.com/lungfunghk/LungFungInternalMemberSSO.git@v1.0.0
+```
+
+### 本地開發安裝
+
+```bash
+# 克隆倉庫
+git clone https://github.com/lungfunghk/LungFungInternalMemberSSO.git
+
+# 開發模式安裝
+cd LungFungInternalMemberSSO
+pip install -e .
 ```
 
 ## 快速開始
