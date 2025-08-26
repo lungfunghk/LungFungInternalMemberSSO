@@ -213,7 +213,7 @@ def get_token_verification_cache(token_value):
     cache_key = get_token_cache_key(token_value)
     cached_user = _get_cache().get(cache_key)
     
-    log_level = getattr(settings, 'SSO_LOGGING_LEVEL', 'DEBUG' if settings.DEBUG else 'INFO')
+    log_level = _get_settings_value('SSO_LOGGING_LEVEL', 'DEBUG' if _get_settings_value('DEBUG', False) else 'INFO')
     if cached_user:
         if log_level == 'DEBUG':
             logger.debug(f"令牌驗證緩存命中，用戶: {cached_user.username}")
@@ -258,7 +258,7 @@ def get_user_permissions_cache(user_id):
     cache_key = get_permissions_cache_key(user_id)
     permissions_data = _get_cache().get(cache_key)
     
-    log_level = getattr(settings, 'SSO_LOGGING_LEVEL', 'DEBUG' if settings.DEBUG else 'INFO')
+    log_level = _get_settings_value('SSO_LOGGING_LEVEL', 'DEBUG' if _get_settings_value('DEBUG', False) else 'INFO')
     if permissions_data:
         if log_level == 'DEBUG':
             logger.debug(f"用戶權限緩存命中，用戶ID: {user_id}")
