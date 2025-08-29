@@ -120,22 +120,44 @@ class SSOPermission(BasePermission):
             return permissions_data
         
         try:
-            # 從 cookies 獲取訪問令牌，如果請求頭中沒有
-            auth_header = request.headers.get('Authorization')
-            if not auth_header and 'auth_access_token' in request.COOKIES:
-                auth_header = f"Bearer {request.COOKIES.get('auth_access_token')}"
-            logger.debug(f"使用授權頭發送請求: {auth_header}")
+            # 改進的 token 獲取邏輯 - 優先從 user.token 獲取
+            auth_token = None
             
-            # 使用正確的權限 API 端點
+            # 優先級1：從用戶對象的 token 屬性獲取
+            if hasattr(request.user, 'token') and request.user.token:
+                auth_token = request.user.token
+                logger.debug("從用戶對象的 token 屬性獲取認證令牌")
+            # 優先級2：從 Authorization header 獲取
+            elif request.headers.get('Authorization'):
+                auth_header = request.headers.get('Authorization')
+                if auth_header.startswith('Bearer '):
+                    auth_token = auth_header.split(' ')[1]
+                else:
+                    auth_token = auth_header
+                logger.debug("從 Authorization header 獲取認證令牌")
+            # 優先級3：從 cookies 獲取
+            elif 'auth_access_token' in request.COOKIES:
+                auth_token = request.COOKIES.get('auth_access_token')
+                logger.debug("從 cookies 獲取認證令牌")
+            
+            # 如果沒有找到 token，記錄錯誤並返回 None
+            if not auth_token:
+                logger.error("無法獲取認證令牌：用戶對象無 token 屬性，請求頭無 Authorization，cookies 無 auth_access_token")
+                return None
+            
+            # 構造請求參數
             permissions_url = f"{settings.SSO_SERVICE['URL']}{settings.SSO_SERVICE['USER_PERMISSIONS_URL']}"
-            logger.info(f"從 SSO 服務獲取權限數據，URL: {permissions_url}")
-            
-            # 使用可配置的超時設置
+            headers = {'Authorization': f'Bearer {auth_token}'}
+            params = {'user_id': request.user.id}  # 添加 user_id 參數
             timeout = getattr(settings, 'SSO_REQUEST_TIMEOUT', 5)
+            
+            logger.info(f"從 SSO 服務獲取權限數據，URL: {permissions_url}, User ID: {request.user.id}")
+            logger.debug(f"使用認證令牌: {auth_token[:10]}...{auth_token[-4:] if len(auth_token) > 14 else auth_token}")
             
             response = requests.get(
                 permissions_url,
-                headers={'Authorization': auth_header} if auth_header else {},
+                params=params,
+                headers=headers,
                 verify=settings.SSO_SERVICE['VERIFY_SSL'],
                 timeout=timeout
             )
@@ -308,31 +330,47 @@ def check_permission(user, module, permissions):
     if isinstance(permissions, str):
         permissions = [permissions]
     
-    # 模擬請求對象來使用現有的權限檢查邏輯
-    class MockRequest:
-        def __init__(self, user):
-            self.user = user
-            self.headers = {}
-            self.COOKIES = {}
-    
-    mock_request = MockRequest(user)
-    
     try:
-        # 獲取權限數據
-        permissions_data = SSOPermission()._get_user_permissions(mock_request)
+        # 優先從緩存獲取權限數據，避免依賴 MockRequest
+        permissions_data = get_user_permissions_cache(user.id)
+        
+        # 如果緩存中沒有權限數據，嘗試使用帶認證信息的模擬請求
         if not permissions_data:
-            return False
+            logger.debug(f"用戶 {user.username} (ID: {user.id}) 沒有緩存的權限數據，嘗試使用模擬請求")
             
+            # 改進的模擬請求對象，包含真實的認證信息
+            class MockRequest:
+                def __init__(self, user):
+                    self.user = user
+                    self.headers = {}
+                    self.COOKIES = {}
+                    
+                    # 如果用戶對象有 token，添加到模擬的 cookies 中
+                    if hasattr(user, 'token') and user.token:
+                        self.COOKIES['auth_access_token'] = user.token
+                        logger.debug("模擬請求：從用戶對象添加 token 到 cookies")
+            
+            mock_request = MockRequest(user)
+            permissions_data = SSOPermission()._get_user_permissions(mock_request)
+            
+            if not permissions_data:
+                logger.warning(f"無法獲取用戶 {user.username} (ID: {user.id}) 的權限數據")
+                return False
+        
         # 收集所有權限
         all_permissions = SSOPermission()._collect_module_permissions(permissions_data)
+        logger.debug(f"用戶 {user.username} 的所有權限: {sorted(list(all_permissions))}")
         
         # 檢查具體權限
         for perm in permissions:
             # 格式化權限
             formatted_perm = Permission.format_permission(module, perm)
+            logger.debug(f"檢查權限: {formatted_perm}")
             if formatted_perm not in all_permissions:
+                logger.warning(f"用戶 {user.username} 缺少權限: {formatted_perm}")
                 return False
                 
+        logger.info(f"用戶 {user.username} 權限檢查通過")
         return True
     except Exception as e:
         logger.error(f"檢查權限時發生錯誤: {str(e)}", exc_info=True)

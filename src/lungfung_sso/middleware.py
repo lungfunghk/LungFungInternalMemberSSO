@@ -206,6 +206,8 @@ class JWTAuthenticationMiddleware:
                 
                 # 創建用戶對象，使用統一的 User 類
                 user = User(user_data)
+                # 保存 token 到用戶對象中，以便後續權限檢查使用
+                user.token = token_value
                 request.user = user
                 
                 # 從設置中獲取緩存過期時間
