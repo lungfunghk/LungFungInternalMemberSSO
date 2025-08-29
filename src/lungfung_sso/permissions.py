@@ -97,9 +97,16 @@ class Permission(Enum):
         # 父模組權限直接返回 action 值本身
         if module == parent_module:
             return action
-            
-        # 子模組權限使用格式 module.action_module
-        return f"{module}.{action}_{module}"
+        
+        # 檢查 action 是否已經包含模組信息
+        # 如果 action 已經是完整格式（如 'delete_tc_customer'），直接使用
+        # 如果 action 是基本類型（如 'delete'），則需要添加模組信息
+        if action.endswith(f'_{module}') or f'_{module}_' in action:
+            # action 已經包含模組信息，直接使用 module.action 格式
+            return f"{module}.{action}"
+        else:
+            # action 是基本類型，需要構造完整的權限名稱
+            return f"{module}.{action}_{module}"
 
 class SSOPermission(BasePermission):
     """SSO權限檢查類"""
