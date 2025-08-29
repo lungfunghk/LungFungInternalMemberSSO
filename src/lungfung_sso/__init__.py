@@ -5,7 +5,7 @@ A Django package providing SSO authentication functionality
 for LungFung projects.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __author__ = "LungFung IT Team"
 
 # 主要組件導入
