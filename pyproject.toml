@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lungfung-sso"
-version = "1.0.2"
+version = "1.0.3"
 description = "LungFung SSO authentication module for Django projects"
 authors = [
     {name = "LungFung IT Team", email = "it@lungfung.hk"}

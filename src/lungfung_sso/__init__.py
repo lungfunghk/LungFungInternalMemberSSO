@@ -5,7 +5,7 @@ A Django package providing SSO authentication functionality
 for LungFung projects.
 """
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __author__ = "LungFung IT Team"
 
 # 主要組件導入
@@ -30,6 +30,7 @@ def __getattr__(name):
         'check_permission': ('permissions', 'check_permission'),
         'module_permission_required': ('permissions', 'module_permission_required'),
         'User': ('models', 'User'),
+        'UserAdapter': ('user_adapter', 'UserAdapter'),
         'cache_user_data': ('cache', 'cache_user_data'),
         'invalidate_user_cache': ('cache', 'invalidate_user_cache'),
         'get_token_verification_cache': ('cache', 'get_token_verification_cache'),
@@ -99,6 +100,9 @@ __all__ = [
     
     # 模型
     'User',
+    
+    # 用戶適配器
+    'UserAdapter',
     
     # 異常類
     'SSOException',
