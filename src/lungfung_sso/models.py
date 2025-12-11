@@ -37,6 +37,7 @@ class User:
         self._user_data = user_data
         
         self.id = user_data.get('id')
+        self.pk = self.id  # Django 兼容性 - pk 是 id 的別名
         self.username = user_data.get('username', '')
         self.email = user_data.get('email', '')
         self.first_name = user_data.get('first_name', '')
