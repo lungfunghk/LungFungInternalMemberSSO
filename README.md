@@ -2,9 +2,9 @@
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Django 5.0+](https://img.shields.io/badge/Django-5.0+-green.svg)](https://www.djangoproject.com/)
-[![Version](https://img.shields.io/badge/Version-1.0.3-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/Version-1.1.0-brightgreen.svg)]()
 
-龍豐 SSO 客戶端模組，為 Django 子系統提供統一的身份認證與權限管理。
+龍豐 SSO 客戶端模組，為 Django 子系統提供統一的身份認證、權限管理與日誌服務。
 
 ---
 
@@ -15,6 +15,7 @@
 - [權限模型](#權限模型)
 - [視圖使用](#視圖使用)
 - [用戶適配器](#用戶適配器)
+- [日誌系統](#日誌系統)
 - [API 參考](#api-參考)
 - [故障排除](#故障排除)
 
@@ -300,6 +301,130 @@ class InvoiceCreateView(ModulePermissionRequiredMixin, CreateView):
 
 ---
 
+## 日誌系統
+
+本模組提供統一的日誌配置和服務，減少各子系統的重複配置。
+
+### 快速配置
+
+在 `settings.py` 中使用 `configure_logging`：
+
+```python
+from lungfung_sso import configure_logging
+
+LOGGING = configure_logging(
+    base_dir=BASE_DIR,
+    debug=DEBUG,
+    app_log_level='DEBUG',      # 應用程式日誌級別
+    django_log_level='INFO',    # Django 框架日誌級別
+    system_name='YOUR_CODE',    # 系統代碼
+    log_to_file=not DEBUG,      # 生產環境記錄到文件
+)
+```
+
+### 配置選項
+
+| 參數 | 說明 | 預設值 |
+|------|------|--------|
+| `base_dir` | 專案根目錄 | 必填 |
+| `debug` | 是否為開發模式 | `False` |
+| `app_log_level` | 應用程式日誌級別 | DEBUG/INFO |
+| `django_log_level` | Django 框架日誌級別 | `INFO` |
+| `system_name` | 系統代碼 | `APP` |
+| `log_to_file` | 是否記錄到文件 | `True` |
+| `include_sql_logs` | 是否包含 SQL 日誌 | `False` |
+| `include_request_logs` | 是否包含請求日誌 | `False` |
+
+### 使用結構化日誌
+
+```python
+from lungfung_sso import create_logger, StructuredLogger
+
+# 方式一：使用 create_logger
+logger = create_logger('apps.approvals', system='APS')
+logger.info('approval_created', user='admin', approval_id=123)
+logger.error('approval_failed', user='admin', error='Invalid data')
+
+# 方式二：審計日誌
+logger.audit(
+    action='create',
+    resource_type='ApprovalRequest',
+    resource_id=123,
+    user='admin',
+    new_value={'status': 'pending'}
+)
+```
+
+### 使用上下文感知日誌
+
+```python
+from lungfung_sso import ContextLogger
+
+# ContextLogger 自動從請求中獲取用戶和請求 ID
+logger = ContextLogger('apps.approvals')
+logger.info('Processing approval', approval_id=123)
+# 輸出: [abc123] [admin] Processing approval | approval_id=123
+```
+
+### 請求日誌中間件
+
+自動記錄 HTTP 請求：
+
+```python
+# settings.py
+MIDDLEWARE = [
+    ...
+    'lungfung_sso.logging_service.RequestLoggingMiddleware',
+]
+```
+
+### 函數調用日誌裝飾器
+
+```python
+from lungfung_sso import log_function_call
+
+@log_function_call('apps.services', log_args=True)
+def process_approval(approval_id, action):
+    # 函數執行會自動記錄
+    ...
+```
+
+### 日誌格式化工具
+
+```python
+from lungfung_sso import LogFormatter
+
+# 生成結構化日誌數據
+log_data = LogFormatter.info(
+    user='admin',
+    action='create_approval',
+    details={'approval_id': 123, 'workflow': 'PC'}
+)
+# {'timestamp': '...', 'level': 'INFO', 'user': 'admin', 'action': 'create_approval', 'details': {...}}
+```
+
+### 文件日誌管理
+
+```python
+from lungfung_sso import FileLogService
+
+service = FileLogService()
+
+# 獲取日誌文件列表
+files = service.get_log_files()
+
+# 讀取最近 100 行日誌
+logs = service.read_recent_logs('app.log', lines=100, level_filter='ERROR')
+
+# 獲取日誌統計
+stats = service.get_log_statistics()
+
+# 清理舊日誌 (預覽模式)
+to_delete = service.cleanup_old_logs(days=30, dry_run=True)
+```
+
+---
+
 ## API 參考
 
 ### 主要導入
@@ -328,6 +453,23 @@ from lungfung_sso import (
     # 緩存
     cache_user_data,
     invalidate_user_cache,
+    
+    # 日誌配置
+    configure_logging,
+    get_logger,
+    log_exception,
+    log_user_action,
+    
+    # 日誌格式化
+    LogFormatter,
+    StructuredLogger,
+    create_logger,
+    
+    # 日誌服務
+    FileLogService,
+    ContextLogger,
+    RequestLoggingMiddleware,
+    log_function_call,
     
     # 異常
     SSOException,
@@ -436,6 +578,14 @@ invalidate_user_cache(user.id)
 ---
 
 ## 版本歷史
+
+### v1.1.0 (2025-12)
+- 新增統一日誌配置模組 `configure_logging`
+- 新增結構化日誌工具 `StructuredLogger`、`ContextLogger`
+- 新增日誌格式化器 `LogFormatter`、`ColoredFormatter`、`JSONFormatter`
+- 新增文件日誌服務 `FileLogService`
+- 新增請求日誌中間件 `RequestLoggingMiddleware`
+- 新增函數調用日誌裝飾器 `log_function_call`
 
 ### v1.0.3 (2025-12)
 - 新增 `UserAdapter` 用戶適配器

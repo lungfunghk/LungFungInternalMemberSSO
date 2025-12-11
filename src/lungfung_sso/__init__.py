@@ -3,9 +3,14 @@ LungFung SSO Authentication Module
 
 A Django package providing SSO authentication functionality
 for LungFung projects.
+
+Features:
+- SSO 認證和授權
+- 統一的日誌配置和服務
+- 權限檢查和管理
 """
 
-__version__ = "1.0.3"
+__version__ = "1.1.0"
 __author__ = "LungFung IT Team"
 
 # 主要組件導入
@@ -14,6 +19,23 @@ from .settings_helper import (
     configure_sso_settings,
     add_sso_middleware,
     add_sso_app,
+)
+
+# 日誌配置 (不依賴 Django 運行時)
+from .logging_config import (
+    configure_logging,
+    get_logger,
+    log_exception,
+    log_user_action,
+    ColoredFormatter,
+    JSONFormatter,
+)
+
+# 日誌格式化工具 (不依賴 Django 運行時)
+from .log_format import (
+    LogFormatter,
+    StructuredLogger,
+    create_logger,
 )
 
 # 使用延遲導入模式來處理 Django 依賴組件
@@ -38,6 +60,13 @@ def __getattr__(name):
         'get_user_permissions_cache': ('cache', 'get_user_permissions_cache'),
         'set_user_permissions_cache': ('cache', 'set_user_permissions_cache'),
         'invalidate_token_cache': ('cache', 'invalidate_token_cache'),
+        # 日誌服務組件 (需要 Django)
+        'FileLogService': ('logging_service', 'FileLogService'),
+        'RequestLoggingMiddleware': ('logging_service', 'RequestLoggingMiddleware'),
+        'ContextLogger': ('logging_service', 'ContextLogger'),
+        'log_function_call': ('logging_service', 'log_function_call'),
+        'get_request_context': ('logging_service', 'get_request_context'),
+        'set_request_context': ('logging_service', 'set_request_context'),
     }
     
     # 異常組件（通常不依賴 Django）
@@ -90,6 +119,7 @@ __all__ = [
     
     # 中間件
     'JWTAuthenticationMiddleware',
+    'RequestLoggingMiddleware',
     
     # 權限相關
     'ModulePermissionRequiredMixin',
@@ -126,6 +156,26 @@ __all__ = [
     'configure_sso_settings',
     'add_sso_middleware',
     'add_sso_app',
+    
+    # 日誌配置
+    'configure_logging',
+    'get_logger',
+    'log_exception',
+    'log_user_action',
+    'ColoredFormatter',
+    'JSONFormatter',
+    
+    # 日誌格式化
+    'LogFormatter',
+    'StructuredLogger',
+    'create_logger',
+    
+    # 日誌服務
+    'FileLogService',
+    'ContextLogger',
+    'log_function_call',
+    'get_request_context',
+    'set_request_context',
 ]
 
 # 包級別配置
