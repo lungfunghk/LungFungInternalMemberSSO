@@ -122,6 +122,25 @@ configure_sso_settings(globals(), {
 })
 ```
 
+### 認證豁免路徑
+
+某些 API 端點（如外部系統回調）不需要 SSO 認證，而是使用簽名驗證。可以通過 `SSO_AUTH_EXEMPT_PATTERNS` 設置豁免路徑：
+
+```python
+# settings.py
+SSO_AUTH_EXEMPT_PATTERNS = [
+    '/api/callback/',   # 通用回調 API
+    '/api/webhooks/',   # Webhook API
+    '/pettycashform/api/callback/',  # 特定模組回調
+]
+```
+
+預設值：
+- `/api/callback/` - 通用回調 API
+- `/api/webhooks/` - Webhook API
+
+這些路徑的認證將被跳過，請確保在視圖中實現簽名驗證。
+
 ### 環境變量
 
 | 變量 | 說明 | 預設值 |
@@ -578,6 +597,14 @@ invalidate_user_cache(user.id)
 ---
 
 ## 版本歷史
+
+### v1.1.2 (2025-12)
+- 新增 `SSO_AUTH_EXEMPT_PATTERNS` 配置，支持自定義認證豁免路徑
+- 中間件自動跳過外部系統回調 API（如 APS 審批回調）
+- 預設豁免 `/api/callback/` 和 `/api/webhooks/` 路徑
+
+### v1.1.1 (2025-12)
+- 修正 `User` 對象的 `pk` 屬性，解決 Django Admin 兼容性問題
 
 ### v1.1.0 (2025-12)
 - 新增統一日誌配置模組 `configure_logging`

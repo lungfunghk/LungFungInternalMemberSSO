@@ -118,6 +118,17 @@ class JWTAuthenticationMiddleware:
         if request.path in ['/auth/login/', '/auth/callback/']:
             logger.debug(f"認證相關路徑 {request.path}，跳過認證")
             return self.get_response(request)
+        
+        # 檢查是否是外部系統回調 API（不需要認證，使用簽名驗證）
+        # 這些 API 通常用於接收來自其他系統的回調（如審批中心 APS）
+        auth_exempt_patterns = getattr(settings, 'SSO_AUTH_EXEMPT_PATTERNS', [
+            '/api/callback/',  # 通用回調 API
+            '/api/webhooks/',  # Webhook API
+        ])
+        for pattern in auth_exempt_patterns:
+            if pattern in request.path:
+                logger.debug(f"外部回調請求 {request.path}（匹配 {pattern}），跳過認證")
+                return self.get_response(request)
             
         # 從 cookie 或 header 中獲取 token
         token = request.COOKIES.get('auth_access_token')
