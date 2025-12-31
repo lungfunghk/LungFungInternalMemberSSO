@@ -36,12 +36,18 @@ class User:
         # 保存原始用戶數據，用於訪問完整的 profile 信息
         self._user_data = user_data
         
+        # 如果有 profile 數據，提取其中的字段
+        # 注意：profile 可能是 None，需要處理
+        profile_data = user_data.get('profile') or {}
+        
         self.id = user_data.get('id')
         self.pk = self.id  # Django 兼容性 - pk 是 id 的別名
         self.username = user_data.get('username', '')
-        self.email = user_data.get('email', '')
-        self.first_name = user_data.get('first_name', '')
-        self.last_name = user_data.get('last_name', '')
+        
+        # 優先從頂層獲取，如果沒有則從 profile 中獲取
+        self.email = user_data.get('email') or profile_data.get('email', '')
+        self.first_name = user_data.get('first_name') or profile_data.get('first_name', '')
+        self.last_name = user_data.get('last_name') or profile_data.get('last_name', '')
         self.is_active = user_data.get('is_active', True)
         self.is_staff = user_data.get('is_staff', False)
         self.is_superuser = user_data.get('is_superuser', False)
@@ -49,14 +55,24 @@ class User:
         self.permissions = user_data.get('permissions', {})
         self.token = user_data.get('token', '')
         
-        # 添加額外的用戶資料屬性
-        self.display_name = user_data.get('display_name', self.get_full_name())
-        self.avatar_url = user_data.get('avatar_url', '')
-        self.department = user_data.get('department', '')
-        self.position = user_data.get('position', '')
+        # 添加額外的用戶資料屬性 - 從頂層或 profile 中獲取
+        self.display_name = (
+            user_data.get('display_name') or 
+            profile_data.get('full_name') or 
+            self.get_full_name()
+        )
+        self.avatar_url = user_data.get('avatar_url') or profile_data.get('avatar_url', '')
+        self.department = user_data.get('department') or profile_data.get('department', '')
+        self.position = user_data.get('position') or profile_data.get('position', '')
         
-        # 如果有 profile 數據，也將其保存為屬性方便訪問
-        self.profile = user_data.get('profile', {})
+        # 從 profile 中獲取員工編號和其他資料
+        self.staff_no = profile_data.get('staff_number', '')
+        self.staff_number = self.staff_no  # 別名
+        self.phone_number = profile_data.get('phone_number', '')
+        self.full_name = profile_data.get('full_name', self.get_full_name())
+        
+        # 保存 profile 數據方便訪問
+        self.profile = profile_data
         
         # 添加經過驗證的標誌，所有使用此類生成的用戶都被視為已認證
         self.is_authenticated = True
