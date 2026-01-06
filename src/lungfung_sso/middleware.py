@@ -8,7 +8,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib import messages
 from .exceptions import TokenError, TokenExpiredError, PermissionDeniedError
 from .models import User  # 導入統一的 User 類
-from .cache import get_token_verification_cache, set_token_verification_cache
+from .cache import get_token_verification_cache, set_token_verification_cache, invalidate_token_cache
 
 import requests
 import time
@@ -16,6 +16,67 @@ import logging
 from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
+
+
+def get_cookie_domain():
+    """
+    獲取適當的 cookie domain 設置
+    
+    Returns:
+        str: cookie domain 值
+    """
+    if getattr(settings, 'DEBUG', False):
+        return 'localhost'
+    else:
+        return '.lungfung.hk'
+
+
+def refresh_access_token(refresh_token, sso_session):
+    """
+    使用 refresh token 刷新 access token
+    
+    Args:
+        refresh_token: JWT refresh token
+        sso_session: requests Session 對象
+        
+    Returns:
+        tuple: (new_access_token, error_message) - 成功時返回新 token，失敗時返回 None 和錯誤信息
+    """
+    try:
+        sso_refresh_url = f"{settings.SSO_SERVICE['URL']}{settings.SSO_SERVICE.get('TOKEN_REFRESH_URL', '/api/auth/token/refresh/')}"
+        request_timeout = getattr(settings, 'SSO_REQUEST_TIMEOUT', 5)
+        
+        logger.info(f"嘗試刷新 access token，SSO URL: {sso_refresh_url}")
+        
+        refresh_response = sso_session.post(
+            sso_refresh_url,
+            json={'refresh': refresh_token},
+            verify=settings.SSO_SERVICE['VERIFY_SSL'],
+            timeout=request_timeout
+        )
+        
+        if refresh_response.status_code == 200:
+            data = refresh_response.json()
+            new_access_token = data.get('access')
+            if new_access_token:
+                logger.info("Access token 刷新成功")
+                return new_access_token, None
+            else:
+                logger.error("刷新響應中沒有 access token")
+                return None, "刷新響應中沒有 access token"
+        elif refresh_response.status_code == 401:
+            logger.warning("Refresh token 已過期或無效")
+            return None, "refresh_token_expired"
+        else:
+            logger.error(f"Token 刷新失敗: HTTP {refresh_response.status_code}")
+            return None, f"刷新失敗: HTTP {refresh_response.status_code}"
+            
+    except requests.RequestException as e:
+        logger.error(f"Token 刷新時連接錯誤: {str(e)}")
+        return None, f"連接錯誤: {str(e)}"
+    except Exception as e:
+        logger.error(f"Token 刷新時發生意外錯誤: {str(e)}", exc_info=True)
+        return None, f"意外錯誤: {str(e)}"
 
 # 嘗試導入 prometheus_client，如果不可用則使用模擬對象
 try:
@@ -94,6 +155,31 @@ class JWTAuthenticationMiddleware:
         # 初始化時獲取SSO會話，只需創建一次
         self.sso_session = get_sso_session()
         
+    def _set_token_cookie(self, response, token_value):
+        """
+        設置更新後的 access token cookie
+        
+        Args:
+            response: HttpResponse 對象
+            token_value: 新的 access token
+            
+        Returns:
+            HttpResponse: 更新後的 response 對象
+        """
+        cookie_domain = get_cookie_domain()
+        secure = not getattr(settings, 'DEBUG', False)
+        
+        response.set_cookie(
+            'auth_access_token',
+            token_value,
+            domain=cookie_domain,
+            secure=secure,
+            httponly=True,
+            samesite='Lax',
+            max_age=3600  # 1小時
+        )
+        return response
+        
     def __call__(self, request):
         start_time = time.time()
         
@@ -129,9 +215,13 @@ class JWTAuthenticationMiddleware:
             if pattern in request.path:
                 logger.debug(f"外部回調請求 {request.path}（匹配 {pattern}），跳過認證")
                 return self.get_response(request)
-            
-        # 從 cookie 或 header 中獲取 token
-        token = request.COOKIES.get('auth_access_token')
+        
+        # 從 cookie 或 header 中獲取 tokens
+        access_token = request.COOKIES.get('auth_access_token')
+        refresh_token = request.COOKIES.get('auth_refresh_token')
+        
+        # 也檢查 Authorization header
+        token = access_token
         if not token:
             token = request.headers.get('Authorization')
             logger.debug("從 Authorization 頭獲取 token")
@@ -231,6 +321,57 @@ class JWTAuthenticationMiddleware:
                 auth_requests.labels(status='success').inc()
             elif verify_response.status_code == 401:
                 logger.warning(f"Token 已過期: {verify_response.text}")
+                
+                # ✅ 新增：嘗試使用 refresh token 刷新 access token
+                if refresh_token:
+                    logger.info("Access token 已過期，嘗試使用 refresh token 刷新...")
+                    new_access_token, refresh_error = refresh_access_token(refresh_token, self.sso_session)
+                    
+                    if new_access_token:
+                        # 刷新成功，使用新 token 重新驗證
+                        logger.info("Token 刷新成功，使用新 token 重新驗證")
+                        
+                        # 清除舊 token 的緩存
+                        invalidate_token_cache(token_value)
+                        
+                        # 重新驗證新 token
+                        new_verify_response = self.sso_session.post(
+                            sso_verify_url,
+                            json={'token': new_access_token},
+                            verify=settings.SSO_SERVICE['VERIFY_SSL'],
+                            timeout=request_timeout
+                        )
+                        
+                        if new_verify_response.status_code == 200:
+                            user_data = new_verify_response.json()
+                            logger.info(f"新 Token 驗證成功，用戶: {user_data.get('username', 'unknown')}")
+                            
+                            # 創建用戶對象
+                            user = User(user_data)
+                            user.token = new_access_token
+                            request.user = user
+                            
+                            # 緩存新 token 的驗證結果
+                            token_cache_ttl = getattr(settings, 'TOKEN_VERIFICATION_CACHE_TTL', 300)
+                            set_token_verification_cache(new_access_token, user, token_cache_ttl)
+                            
+                            auth_requests.labels(status='refreshed').inc()
+                            
+                            # 處理請求並在響應中設置新的 cookie
+                            response = self.get_response(request)
+                            response = self._set_token_cookie(response, new_access_token)
+                            
+                            auth_latency.observe(time.time() - start_time)
+                            logger.info(f"請求處理完成（token 已刷新），耗時: {time.time() - start_time:.3f}秒")
+                            return response
+                        else:
+                            logger.error(f"新 Token 驗證失敗: HTTP {new_verify_response.status_code}")
+                    else:
+                        logger.warning(f"Token 刷新失敗: {refresh_error}")
+                else:
+                    logger.warning("沒有 refresh token，無法刷新")
+                
+                # 刷新失敗或沒有 refresh token，重定向到登入頁面
                 auth_requests.labels(status='expired').inc()
                 request.user = AnonymousUser()
                 
@@ -241,7 +382,7 @@ class JWTAuthenticationMiddleware:
                 if not request.path.startswith('/api/'):
                     next_url = quote(request.get_full_path())
                     redirect_url = f"{settings.SSO_SERVICE['URL']}?next={next_url}"
-                    logger.info(f"Token 過期，重定向到 SSO 登錄頁面: {redirect_url}")
+                    logger.info(f"Token 過期且無法刷新，重定向到 SSO 登錄頁面: {redirect_url}")
                     return redirect(redirect_url)
                     
                 return JsonResponse({
